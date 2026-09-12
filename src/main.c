@@ -51,18 +51,14 @@ static void DrawButton(HDC dc, RECT *r, LPCWSTR text, HFONT font)
 static void DrawScreen(HDC dc, RECT *client)
 {
     HBRUSH bg = CreateSolidBrush(RGB(24, 32, 45));
-    HFONT title = CreateFontW(34, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                              CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-                              DEFAULT_PITCH | FF_SWISS, L"Arial");
-    HFONT body = CreateFontW(17, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                             CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-                             DEFAULT_PITCH | FF_SWISS, L"Arial");
-    HFONT button = CreateFontW(14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                               DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                               CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-                               DEFAULT_PITCH | FF_SWISS, L"Arial");
+    /*
+     * CeGCC's Windows CE import library does not export CreateFontW on the
+     * target used by this project.  Stock fonts are provided by USER/GDI on
+     * every CE image and avoid a non portable font creation dependency.
+     */
+    HFONT title = (HFONT)GetStockObject(SYSTEM_FONT);
+    HFONT body = (HFONT)GetStockObject(SYSTEM_FONT);
+    HFONT button = (HFONT)GetStockObject(SYSTEM_FONT);
     RECT r = *client;
     WCHAR line[256];
 
@@ -105,9 +101,6 @@ static void DrawScreen(HDC dc, RECT *client)
     DrawButton(dc, &g_exit, L"SAIR", button);
 
     DeleteObject(bg);
-    DeleteObject(title);
-    DeleteObject(body);
-    DeleteObject(button);
 }
 
 static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
