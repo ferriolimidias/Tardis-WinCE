@@ -1,0 +1,21 @@
+output/
+artifacts/
+*.exe
+*.o
+*.obj
+*.log
+
+# Local upstream source clones used only for offline reference
+_reference/
+
+# Toolchain/build scratch and host-specific files
+build/
+*.tmp
+*.bak
+*.user
+*.suo
+.env
+.env.*
+credentials*
+secrets*
+tokens*

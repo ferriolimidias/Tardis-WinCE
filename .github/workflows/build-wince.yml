@@ -1,0 +1,53 @@
+name: Build Windows CE ARM
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - '.github/workflows/build-wince.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/enlyze/windows-ce-build-environment-arm@sha256:22ea23d697accaab2b98fb12d81ccc1faade90f9fe490f554ae7c5c194dfe27c
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inspect CeGCC environment
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p logs
+          command -v arm-mingw32ce-gcc
+          arm-mingw32ce-gcc --version | tee logs/compiler-version.txt
+          arm-mingw32ce-gcc -dumpmachine | tee logs/compiler-target.txt
+          arm-mingw32ce-gcc -dumpspecs > logs/compiler-specs.txt
+          command -v arm-mingw32ce-objdump
+          command -v file || true
+
+      - name: Build hello and Tardis
+        shell: bash
+        run: |
+          set -euxo pipefail
+          chmod +x scripts/build.sh scripts/validate_pe.sh
+          scripts/build.sh
+
+      - name: Validate PE outputs
+        shell: bash
+        run: |
+          set -euxo pipefail
+          scripts/validate_pe.sh
+
+      - name: Upload Windows CE artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tardis-wince-arm
+          path: |
+            output/hello_tardis.exe
+            output/Tardis.exe
+            logs/
+            SHA256.txt
