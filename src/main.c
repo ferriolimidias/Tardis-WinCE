@@ -1,366 +1,143 @@
 /*
- * Tardis.exe - interface principal para GPS Aquarius / Windows CE.
- * Target: ARMv4/ARMv4T, PE32, Windows CE, 480x272.
- * Sem .NET/MFC/ATL e sem assets externos.
+ * Tardis.exe - interface de compatibilidade para o Windows CE OEM.
+ *
+ * O GPS executa hello_tardis.exe, cujo import table foi observado em campo.
+ * O navegador original importa COREDLL por ordinais. Para evitar que uma API
+ * ausente impeça o carregamento antes de WinMain, esta versão usa somente:
+ *
+ *   - MessageBoxW e o CRT já presentes no hello_tardis.exe;
+ *   - DialogBoxIndirectParamW e PostQuitMessage, presentes no MobileNavigator
+ *     pelos ordinais COREDLL 260 e 803.
+ *
+ * A interface é composta por controles nativos de diálogo. Isso elimina
+ * RegisterClass, GDI, timers, fontes e consultas de sistema não comprovadas.
  */
 #include <windows.h>
 
 #pragma comment(lib, "coredll.lib")
 
-#define PAGE_HOME       0
-#define PAGE_SYSTEM     1
-#define PAGE_MEDIA      2
-#define PAGE_NETWORK    3
-#define PAGE_CONTROLS   4
+#define IDC_SYSTEM   100
+#define IDC_MEDIA    101
+#define IDC_NETWORK  102
+#define IDC_CONTROLS 103
+#define IDC_BACK     104
+#define IDC_EXIT     105
 
-static HWND g_hwnd;
-static int g_page = PAGE_HOME;
-static RECT g_tile_system;
-static RECT g_tile_media;
-static RECT g_tile_network;
-static RECT g_tile_controls;
-static RECT g_back;
-static RECT g_action1;
-static RECT g_action2;
-static RECT g_action3;
-static WCHAR g_message[96] = L"";
+static BYTE g_dialog_template[2048];
 
-static BOOL PtIn(const RECT *r, int x, int y)
+static BYTE *PutWord(BYTE *p, WORD value)
 {
-    return x >= r->left && x < r->right && y >= r->top && y < r->bottom;
+    *(WORD *)p = value;
+    return p + sizeof(WORD);
 }
 
-static void DrawTextCentered(HDC dc, RECT r, LPCWSTR text)
+static BYTE *PutDword(BYTE *p, DWORD value)
 {
-    DrawTextW(dc, text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    *(DWORD *)p = value;
+    return p + sizeof(DWORD);
 }
 
-static void DrawTextLeft(HDC dc, RECT r, LPCWSTR text)
+static BYTE *PutString(BYTE *p, LPCWSTR text)
 {
-    DrawTextW(dc, text, -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-}
-
-static void Fill(HDC dc, RECT r, COLORREF color)
-{
-    HBRUSH b = CreateSolidBrush(color);
-    FillRect(dc, &r, b);
-    DeleteObject(b);
-}
-
-static void Frame(HDC dc, RECT r, COLORREF color)
-{
-    HPEN pen = CreatePen(PS_SOLID, 1, color);
-    HPEN old = (HPEN)SelectObject(dc, pen);
-    HBRUSH oldb = (HBRUSH)SelectObject(dc, GetStockObject(HOLLOW_BRUSH));
-    Rectangle(dc, r.left, r.top, r.right, r.bottom);
-    SelectObject(dc, oldb);
-    SelectObject(dc, old);
-    DeleteObject(pen);
-}
-
-static void Button(HDC dc, RECT r, LPCWSTR text, BOOL active)
-{
-    Fill(dc, r, active ? RGB(38, 76, 104) : RGB(28, 39, 54));
-    Frame(dc, r, active ? RGB(95, 190, 230) : RGB(76, 95, 112));
-    SetTextColor(dc, RGB(236, 244, 248));
-    SetBkMode(dc, TRANSPARENT);
-    DrawTextCentered(dc, r, text);
-}
-
-static void SetRects(int w, int h)
-{
-    int top = 72;
-    int left = 12;
-    int right = w - 12;
-    int gap = 8;
-    int tw = (right - left - gap) / 2;
-    int th = 70;
-
-    SetRect(&g_tile_system, left, top, left + tw, top + th);
-    SetRect(&g_tile_media, left + tw + gap, top, right, top + th);
-    SetRect(&g_tile_network, left, top + th + gap, left + tw, top + th + gap + th);
-    SetRect(&g_tile_controls, left + tw + gap, top + th + gap, right, top + th + gap + th);
-
-    SetRect(&g_back, 12, h - 44, 100, h - 10);
-    SetRect(&g_action1, 12, 118, 150, 158);
-    SetRect(&g_action2, 170, 118, 308, 158);
-    SetRect(&g_action3, 328, 118, w - 12, 158);
-}
-
-static void DrawHeader(HDC dc, RECT client)
-{
-    SYSTEMTIME st;
-    WCHAR clock[32];
-    RECT r;
-
-    Fill(dc, client, RGB(14, 20, 29));
-    SetBkMode(dc, TRANSPARENT);
-
-    SetTextColor(dc, RGB(92, 205, 242));
-    SetRect(&r, 14, 8, 220, 42);
-    DrawTextLeft(dc, r, L"TARDIS");
-
-    SetTextColor(dc, RGB(178, 193, 205));
-    SetRect(&r, 14, 38, 260, 61);
-    DrawTextLeft(dc, r, L"TERMINAL WINDOWS CE");
-
-    GetLocalTime(&st);
-    wsprintfW(clock, L"%02u:%02u", st.wHour, st.wMinute);
-    SetTextColor(dc, RGB(236, 244, 248));
-    SetRect(&r, client.right - 92, 10, client.right - 12, 38);
-    DrawTextCentered(dc, r, clock);
-
-    SetTextColor(dc, RGB(232, 168, 70));
-    SetRect(&r, client.right - 145, 38, client.right - 12, 61);
-    DrawTextCentered(dc, r, L"TARDIS OFFLINE");
-
-    SetRect(&r, 12, 64, client.right - 12, 66);
-    Fill(dc, r, RGB(40, 58, 73));
-}
-
-static void DrawHome(HDC dc, RECT client)
-{
-    RECT r;
-
-    Button(dc, g_tile_system, L"SISTEMA", TRUE);
-    Button(dc, g_tile_media, L"MIDIA", TRUE);
-    Button(dc, g_tile_network, L"REDE", TRUE);
-    Button(dc, g_tile_controls, L"CONTROLES", TRUE);
-
-    SetTextColor(dc, RGB(129, 149, 164));
-    SetRect(&r, 12, client.bottom - 34, client.right - 12, client.bottom - 8);
-    DrawTextCentered(dc, r, L"Interface local pronta | USB ainda sem sessao de dados");
-}
-
-static void DrawSystem(HDC dc, RECT client)
-{
-    RECT r;
-    MEMORYSTATUS ms;
-    OSVERSIONINFO vi;
-    WCHAR line[160];
-    WCHAR path[MAX_PATH];
-    DWORD len;
-
-    ZeroMemory(&ms, sizeof(ms));
-    ms.dwLength = sizeof(ms);
-    GlobalMemoryStatus(&ms);
-
-    ZeroMemory(&vi, sizeof(vi));
-    vi.dwOSVersionInfoSize = sizeof(vi);
-    GetVersionExW(&vi);
-
-    path[0] = 0;
-    len = GetModuleFileNameW(NULL, path, MAX_PATH);
-    if (!len) lstrcpyW(path, L"(caminho indisponivel)");
-
-    SetTextColor(dc, RGB(236, 244, 248));
-    SetRect(&r, 16, 78, client.right - 16, 103);
-    DrawTextLeft(dc, r, L"SISTEMA");
-
-    SetTextColor(dc, RGB(176, 194, 206));
-    wsprintfW(line, L"Tela: %dx%d   Windows CE: %u.%u",
-              GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN),
-              vi.dwMajorVersion, vi.dwMinorVersion);
-    SetRect(&r, 16, 108, client.right - 16, 132);
-    DrawTextLeft(dc, r, line);
-
-    wsprintfW(line, L"RAM livre: %lu KB   RAM total: %lu KB",
-              (unsigned long)(ms.dwAvailPhys / 1024),
-              (unsigned long)(ms.dwTotalPhys / 1024));
-    SetRect(&r, 16, 134, client.right - 16, 158);
-    DrawTextLeft(dc, r, line);
-
-    SetRect(&r, 16, 160, client.right - 16, 188);
-    DrawTextLeft(dc, r, path);
-
-    Button(dc, g_back, L"VOLTAR", TRUE);
-}
-
-static void DrawMedia(HDC dc, RECT client)
-{
-    RECT r;
-
-    SetTextColor(dc, RGB(236, 244, 248));
-    SetRect(&r, 16, 78, client.right - 16, 103);
-    DrawTextLeft(dc, r, L"MIDIA");
-
-    SetTextColor(dc, RGB(176, 194, 206));
-    SetRect(&r, 16, 88, client.right - 16, 115);
-    DrawTextCentered(dc, r, L"Controles preparados para a Tardis");
-
-    Button(dc, g_action1, L"ANTERIOR", FALSE);
-    Button(dc, g_action2, L"PLAY / PAUSA", FALSE);
-    Button(dc, g_action3, L"PROXIMO", FALSE);
-
-    SetTextColor(dc, RGB(232, 168, 70));
-    SetRect(&r, 16, 170, client.right - 16, 205);
-    DrawTextCentered(dc, r, L"Aguardando conexao USB com a Tardis");
-
-    Button(dc, g_back, L"VOLTAR", TRUE);
-}
-
-static void DrawNetwork(HDC dc, RECT client)
-{
-    RECT r;
-
-    SetTextColor(dc, RGB(236, 244, 248));
-    SetRect(&r, 16, 78, client.right - 16, 103);
-    DrawTextLeft(dc, r, L"REDE");
-
-    SetTextColor(dc, RGB(176, 194, 206));
-    SetRect(&r, 16, 112, client.right - 16, 138);
-    DrawTextLeft(dc, r, L"USB: disponivel");
-    SetRect(&r, 16, 140, client.right - 16, 166);
-    DrawTextLeft(dc, r, L"ActiveSync/IP: nao conectado");
-    SetRect(&r, 16, 168, client.right - 16, 194);
-    DrawTextLeft(dc, r, L"Servidor Tardis: offline");
-
-    Button(dc, g_back, L"VOLTAR", TRUE);
-}
-
-static void DrawControls(HDC dc, RECT client)
-{
-    RECT r;
-
-    SetTextColor(dc, RGB(236, 244, 248));
-    SetRect(&r, 16, 78, client.right - 16, 103);
-    DrawTextLeft(dc, r, L"CONTROLES");
-
-    Button(dc, g_action1, L"TELA", TRUE);
-    Button(dc, g_action2, L"ATUALIZAR", TRUE);
-    Button(dc, g_action3, L"SAIR", TRUE);
-
-    SetTextColor(dc, RGB(176, 194, 206));
-    SetRect(&r, 16, 171, client.right - 16, 200);
-    DrawTextCentered(dc, r, g_message[0] ? g_message : L"Comandos remotos serao habilitados via Tardis");
-
-    Button(dc, g_back, L"VOLTAR", TRUE);
-}
-
-static void DrawScreen(HDC dc, RECT client)
-{
-    HFONT oldFont;
-
-    oldFont = (HFONT)SelectObject(dc, GetStockObject(SYSTEM_FONT));
-    DrawHeader(dc, client);
-
-    switch (g_page) {
-    case PAGE_SYSTEM:   DrawSystem(dc, client); break;
-    case PAGE_MEDIA:    DrawMedia(dc, client); break;
-    case PAGE_NETWORK:  DrawNetwork(dc, client); break;
-    case PAGE_CONTROLS: DrawControls(dc, client); break;
-    default:            DrawHome(dc, client); break;
+    while (*text) {
+        p = PutWord(p, (WORD)*text++);
     }
-
-    SelectObject(dc, oldFont);
+    return PutWord(p, 0);
 }
 
-static void GoPage(int page)
+static BYTE *AlignDword(BYTE *p)
 {
-    g_page = page;
-    g_message[0] = 0;
-    InvalidateRect(g_hwnd, NULL, TRUE);
+    DWORD v = (DWORD)(p - g_dialog_template);
+    v = (v + 3u) & ~3u;
+    return g_dialog_template + v;
 }
 
-static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+static BYTE *PutItem(BYTE *p, DWORD style, short x, short y,
+                     short cx, short cy, WORD id, WORD class_atom,
+                     LPCWSTR text)
 {
-    switch (msg) {
-    case WM_SIZE:
-        SetRects(LOWORD(lp), HIWORD(lp));
-        return 0;
+    p = AlignDword(p);
+    p = PutDword(p, style);
+    p = PutDword(p, 0);
+    p = PutWord(p, (WORD)x);
+    p = PutWord(p, (WORD)y);
+    p = PutWord(p, (WORD)cx);
+    p = PutWord(p, (WORD)cy);
+    p = PutWord(p, id);
+    p = PutWord(p, 0xffff);
+    p = PutWord(p, class_atom);
+    p = PutString(p, text);
+    return PutWord(p, 0);
+}
 
-    case WM_TIMER:
-        InvalidateRect(hwnd, NULL, FALSE);
-        return 0;
+static BYTE *BuildDialogTemplate(void)
+{
+    BYTE *p = g_dialog_template;
+    DWORD child = WS_CHILD | WS_VISIBLE;
+    DWORD button = child | WS_TABSTOP | BS_PUSHBUTTON;
 
-    case WM_LBUTTONUP:
-        {
-            int x = LOWORD(lp);
-            int y = HIWORD(lp);
+    p = PutDword(p, WS_POPUP | WS_VISIBLE | DS_SETFONT);
+    p = PutDword(p, 0);
+    p = PutWord(p, 12);
+    p = PutWord(p, 0);
+    p = PutWord(p, 0);
+    p = PutWord(p, 120);
+    p = PutWord(p, 34);
+    p = PutWord(p, 0);
+    p = PutWord(p, 0);
+    p = PutString(p, L"TARDIS");
+    p = PutWord(p, 8);
+    p = PutString(p, L"Tahoma");
 
-            if (g_page == PAGE_HOME) {
-                if (PtIn(&g_tile_system, x, y)) GoPage(PAGE_SYSTEM);
-                else if (PtIn(&g_tile_media, x, y)) GoPage(PAGE_MEDIA);
-                else if (PtIn(&g_tile_network, x, y)) GoPage(PAGE_NETWORK);
-                else if (PtIn(&g_tile_controls, x, y)) GoPage(PAGE_CONTROLS);
-            } else {
-                if (PtIn(&g_back, x, y)) {
-                    GoPage(PAGE_HOME);
-                } else if (g_page == PAGE_CONTROLS) {
-                    if (PtIn(&g_action1, x, y)) {
-                        lstrcpyW(g_message, L"Tela ativa");
-                        InvalidateRect(hwnd, NULL, FALSE);
-                    } else if (PtIn(&g_action2, x, y)) {
-                        lstrcpyW(g_message, L"Interface atualizada");
-                        InvalidateRect(hwnd, NULL, FALSE);
-                    } else if (PtIn(&g_action3, x, y)) {
-                        DestroyWindow(hwnd);
-                    }
-                }
-            }
+    p = PutItem(p, child | SS_CENTER, 4, 1, 112, 4, 0, 0x0082, L"TARDIS");
+    p = PutItem(p, child | SS_CENTER, 4, 5, 112, 3, 0, 0x0082, L"STATUS: OFFLINE");
+    p = PutItem(p, button, 4, 9, 52, 6, IDC_SYSTEM, 0x0080, L"SISTEMA");
+    p = PutItem(p, button, 62, 9, 52, 6, IDC_MEDIA, 0x0080, L"MIDIA");
+    p = PutItem(p, button, 4, 17, 52, 6, IDC_NETWORK, 0x0080, L"REDE");
+    p = PutItem(p, button, 62, 17, 52, 6, IDC_CONTROLS, 0x0080, L"CONTROLES");
+    p = PutItem(p, child | SS_CENTER, 4, 24, 52, 3, 0, 0x0082, L"Windows CE");
+    p = PutItem(p, child | SS_CENTER, 62, 24, 52, 3, 0, 0x0082, L"Controles visuais");
+    p = PutItem(p, child | SS_CENTER, 4, 27, 52, 2, 0, 0x0082, L"USB");
+    p = PutItem(p, child | SS_CENTER, 62, 27, 52, 2, 0, 0x0082, L"TARDIS OFFLINE");
+    p = PutItem(p, button, 4, 30, 52, 4, IDC_BACK, 0x0080, L"VOLTAR");
+    p = PutItem(p, button, 62, 30, 52, 4, IDC_EXIT, 0x0080, L"SAIR");
+    return p;
+}
+
+static BOOL CALLBACK TardisDialogProc(HWND dialog, UINT message,
+                                      WPARAM wParam, LPARAM lParam)
+{
+    (void)dialog;
+    (void)lParam;
+    switch (message) {
+    case WM_INITDIALOG:
+        return TRUE;
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDC_EXIT) {
+            PostQuitMessage(0);
+            return TRUE;
         }
-        return 0;
-
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            RECT client;
-            HDC dc = BeginPaint(hwnd, &ps);
-            GetClientRect(hwnd, &client);
-            DrawScreen(dc, client);
-            EndPaint(hwnd, &ps);
-        }
-        return 0;
-
-    case WM_ERASEBKGND:
-        return 1;
-
-    case WM_DESTROY:
-        KillTimer(hwnd, 1);
-        PostQuitMessage(0);
-        return 0;
+        return TRUE;
     }
-
-    return DefWindowProcW(hwnd, msg, wp, lp);
+    return FALSE;
 }
 
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmd, int show)
+int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous,
+                  LPWSTR command_line, int show)
 {
-    WNDCLASSW wc;
-    MSG msg;
-    RECT client;
-
-    (void)prev;
-    (void)cmd;
+    INT_PTR result;
+    (void)previous;
+    (void)command_line;
     (void)show;
 
-    ZeroMemory(&wc, sizeof(wc));
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = WndProc;
-    wc.hInstance = inst;
-    wc.hCursor = NULL;
-    wc.hbrBackground = NULL;
-    wc.lpszClassName = L"TardisMainWindow";
-
-    if (!RegisterClassW(&wc)) return 1;
-
-    g_hwnd = CreateWindowExW(0, wc.lpszClassName, L"TARDIS",
-                             WS_POPUP, 0, 0, 480, 272,
-                             NULL, NULL, inst, NULL);
-    if (!g_hwnd) return 2;
-
-    GetClientRect(g_hwnd, &client);
-    SetRects(client.right, client.bottom);
-
-    ShowWindow(g_hwnd, SW_SHOWMAXIMIZED);
-    SetForegroundWindow(g_hwnd);
-    UpdateWindow(g_hwnd);
-    SetTimer(g_hwnd, 1, 1000, NULL);
-
-    while (GetMessageW(&msg, NULL, 0, 0) > 0) {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
+    BuildDialogTemplate();
+    result = DialogBoxIndirectParamW(instance,
+                                     (LPCDLGTEMPLATE)g_dialog_template,
+                                     NULL, TardisDialogProc, 0);
+    if (result == -1) {
+        MessageBoxW(NULL, L"TARDIS: erro ao criar janela",
+                    L"Windows CE", MB_OK);
+        return 1;
     }
-
-    return (int)msg.wParam;
+    return 0;
 }
