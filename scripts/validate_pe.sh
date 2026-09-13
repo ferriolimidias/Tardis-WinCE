@@ -35,4 +35,5 @@ validate_one() {
 
 validate_one "$OUT/hello_tardis.exe"
 validate_one "$OUT/Tardis.exe"
-sha256sum "$OUT/hello_tardis.exe" "$OUT/Tardis.exe" | tee "$ROOT/SHA256.txt"
+validate_one "$OUT/serial_probe.exe"
+sha256sum "$OUT/hello_tardis.exe" "$OUT/Tardis.exe" "$OUT/serial_probe.exe" | tee "$ROOT/SHA256.txt"

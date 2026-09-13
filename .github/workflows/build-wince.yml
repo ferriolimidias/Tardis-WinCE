@@ -30,7 +30,7 @@ jobs:
           command -v arm-mingw32ce-objdump
           command -v file || true
 
-      - name: Build hello and Tardis
+      - name: Build hello, Tardis and serial probe
         shell: bash
         run: |
           set -euxo pipefail
@@ -50,5 +50,6 @@ jobs:
           path: |
             output/hello_tardis.exe
             output/Tardis.exe
+            output/serial_probe.exe
             logs/
             SHA256.txt

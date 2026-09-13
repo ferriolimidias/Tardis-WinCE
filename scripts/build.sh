@@ -59,7 +59,16 @@ if [ ! -s "$OUT/Tardis.exe" ]; then
     exit 4
 fi
 
-for exe in "$OUT/hello_tardis.exe" "$OUT/Tardis.exe"; do
+"$CC" "${COMMON_FLAGS[@]}" "${ARCH_FLAGS[@]}" \
+    "$SRC/serial_probe.c" -o "$OUT/serial_probe.exe" \
+    2>&1 | tee "$LOG/serial-probe-build.txt"
+
+if [ ! -s "$OUT/serial_probe.exe" ]; then
+    echo "serial_probe.exe não foi produzido" >&2
+    exit 5
+fi
+
+for exe in "$OUT/hello_tardis.exe" "$OUT/Tardis.exe" "$OUT/serial_probe.exe"; do
     base="$(basename "$exe")"
     if command -v file >/dev/null 2>&1; then
         file "$exe" | tee "$LOG/$base.file.txt"
