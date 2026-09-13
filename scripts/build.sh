@@ -7,12 +7,14 @@ OUT="$ROOT/output"
 LOG="$ROOT/logs"
 CC="${CC:-arm-mingw32ce-gcc}"
 OBJDUMP="${OBJDUMP:-arm-mingw32ce-objdump}"
+WINDRES="${WINDRES:-arm-mingw32ce-windres}"
 
 mkdir -p "$OUT" "$LOG"
 command -v "$CC" > "$LOG/compiler-path.txt"
 "$CC" --version | tee "$LOG/compiler-version.txt"
 "$CC" -dumpmachine | tee "$LOG/compiler-target.txt"
 "$CC" -dumpspecs > "$LOG/compiler-specs.txt"
+command -v "$WINDRES" > "$LOG/resource-compiler-path.txt"
 
 COMMON_FLAGS=(-O2 -mwin32 -D_WIN32_WCE=0x0600 -D_WIN32_IE=0x0400 -DUNICODE -D_UNICODE)
 
@@ -43,8 +45,10 @@ if [ ! -s "$OUT/hello_tardis.exe" ]; then
     exit 3
 fi
 
+"$WINDRES" "$ROOT/res/skin.rc" -O coff -o "$LOG/skin.o"
+
 "$CC" "${COMMON_FLAGS[@]}" "${ARCH_FLAGS[@]}" \
-    "$SRC/main.c" -o "$OUT/Tardis.exe" \
+    "$SRC/main.c" "$LOG/skin.o" -o "$OUT/Tardis.exe" \
     2>&1 | tee "$LOG/tardis-build.txt"
 
 if [ ! -s "$OUT/Tardis.exe" ]; then

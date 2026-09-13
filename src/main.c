@@ -1,31 +1,32 @@
 /*
- * Tardis.exe - painel de rede para o Windows CE OEM.
+ * Tardis.exe - skin bitmap 480x272 para Windows CE OEM.
  *
- * A imagem do GPS foi validada com um conjunto pequeno de imports. Esta
- * implementação usa somente controles nativos de diálogo e troca páginas
- * reconstruindo o template. Não há GDI, timers, rede ou dados simulados.
+ * O recurso BMP fornece o fundo, cards e botoes. Textos de estado sao
+ * controles STATIC sobre a imagem; as areas de toque sao STATIC SS_NOTIFY
+ * sem aparencia nativa. Nenhuma API de desenho nao comprovada e importada.
  */
 #include <windows.h>
 
 #pragma comment(lib, "coredll.lib")
 
-#define PAGE_DASHBOARD 0
-#define PAGE_WIFI      1
-#define PAGE_NETWORK   2
-#define PAGE_CONTROLS  3
+#define IDB_SKIN         200
+#define PAGE_DASHBOARD   0
+#define PAGE_WIFI        1
+#define PAGE_NETWORK     2
+#define PAGE_CONTROLS    3
 
-#define IDC_WIFI        100
-#define IDC_NETWORK     101
-#define IDC_CONTROLS    102
-#define IDC_BACK        103
-#define IDC_EXIT        104
-#define IDC_SHOW_PASS   105
-#define IDC_QR          106
-#define IDC_REFRESH     107
-#define IDC_POWER_PC    108
-#define IDC_REFRESH_NET 109
-#define IDC_RESTART     110
-#define IDC_SHUTDOWN    111
+#define IDC_WIFI         100
+#define IDC_NETWORK      101
+#define IDC_CONTROLS     102
+#define IDC_BACK         103
+#define IDC_EXIT         104
+#define IDC_SHOW_PASS    105
+#define IDC_QR           106
+#define IDC_REFRESH      107
+#define IDC_POWER_PC     108
+#define IDC_REFRESH_NET  109
+#define IDC_RESTART      110
+#define IDC_SHUTDOWN     111
 
 typedef struct {
     BOOL tardis_online;
@@ -45,7 +46,6 @@ static int g_page = PAGE_DASHBOARD;
 static BOOL g_quit = FALSE;
 static TARDIS_STATUS g_status = {0};
 static HBRUSH g_dark_brush = NULL;
-static HBRUSH g_button_brush = NULL;
 
 static BYTE *PutWord(BYTE *p, WORD value)
 {
@@ -92,137 +92,144 @@ static BYTE *PutItem(BYTE *p, DWORD style, short x, short y,
     return PutWord(p, 0);
 }
 
-static BYTE *BeginTemplate(LPCWSTR caption)
+static BYTE *PutBitmapItem(BYTE *p, short x, short y, short cx, short cy)
+{
+    DWORD style = WS_CHILD | WS_VISIBLE | SS_BITMAP | SS_LEFT;
+    p = AlignDword(p);
+    p = PutDword(p, style);
+    p = PutDword(p, 0);
+    p = PutWord(p, (WORD)x);
+    p = PutWord(p, (WORD)y);
+    p = PutWord(p, (WORD)cx);
+    p = PutWord(p, (WORD)cy);
+    p = PutWord(p, 0);
+    p = PutWord(p, 0xffff);
+    p = PutWord(p, 0x0082);
+    p = PutWord(p, 0xffff);
+    p = PutWord(p, IDB_SKIN);
+    return PutWord(p, 0);
+}
+
+static BYTE *BeginTemplate(LPCWSTR caption, WORD control_count)
 {
     BYTE *p = g_dialog_template;
-    p = PutDword(p, WS_POPUP | WS_VISIBLE | DS_SETFONT);
+    p = PutDword(p, WS_POPUP | WS_VISIBLE);
     p = PutDword(p, 0);
-    p = PutWord(p, 8);
+    p = PutWord(p, control_count);
     p = PutWord(p, 0);
     p = PutWord(p, 0);
-    /* 316x184 DLU ocupa a área útil aproximada de 480x272 neste firmware. */
+    /* 316x184 DLU ocupa aproximadamente 480x272 neste firmware. */
     p = PutWord(p, 316);
     p = PutWord(p, 184);
     p = PutWord(p, 0);
     p = PutWord(p, 0);
     p = PutString(p, caption);
-    p = PutWord(p, 8);
-    p = PutString(p, L"Tahoma");
     return p;
-}
-
-static DWORD ChildStyle(void)
-{
-    return WS_CHILD | WS_VISIBLE;
-}
-
-static DWORD ButtonStyle(void)
-{
-    return WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON;
 }
 
 static BYTE *AddLabel(BYTE *p, short x, short y, short cx, short cy,
                       LPCWSTR text)
 {
-    return PutItem(p, ChildStyle() | SS_LEFT, x, y, cx, cy, 0,
-                   0x0082, text);
+    DWORD style = WS_CHILD | WS_VISIBLE | SS_LEFT | SS_TRANSPARENT;
+    return PutItem(p, style, x, y, cx, cy, 0, 0x0082, text);
 }
 
 static BYTE *AddCentered(BYTE *p, short x, short y, short cx, short cy,
                          LPCWSTR text)
 {
-    return PutItem(p, ChildStyle() | SS_CENTER, x, y, cx, cy, 0,
-                   0x0082, text);
+    DWORD style = WS_CHILD | WS_VISIBLE | SS_CENTER | SS_TRANSPARENT;
+    return PutItem(p, style, x, y, cx, cy, 0, 0x0082, text);
 }
 
-static BYTE *AddButton(BYTE *p, short x, short y, short cx, short cy,
-                       WORD id, LPCWSTR text)
+static BYTE *AddHit(BYTE *p, short x, short y, short cx, short cy, WORD id)
 {
-    return PutItem(p, ButtonStyle(), x, y, cx, cy, id, 0x0080, text);
-}
-
-static BYTE *AddGroup(BYTE *p, short x, short y, short cx, short cy,
-                      LPCWSTR text)
-{
-    return PutItem(p, ChildStyle() | BS_GROUPBOX, x, y, cx, cy, 0,
-                   0x0080, text);
+    DWORD style = WS_CHILD | WS_VISIBLE | SS_NOTIFY | SS_TRANSPARENT;
+    return PutItem(p, style, x, y, cx, cy, id, 0x0082, L"");
 }
 
 static BYTE *BuildDashboard(void)
 {
-    BYTE *p = BeginTemplate(L"TARDIS");
+    BYTE *p = BeginTemplate(L"TARDIS", 18);
     (void)g_status;
-    p = AddLabel(p, 10, 5, 220, 10, L"TARDIS  |  PAINEL DE REDE");
-    p = AddCentered(p, 244, 5, 62, 10, L"[ OFFLINE ]");
-    p = AddGroup(p, 8, 18, 300, 32, L"INTERNET");
-    p = AddLabel(p, 16, 29, 284, 8, L"OFFLINE       Ping: -- ms       Perda: -- %");
-    p = AddGroup(p, 8, 54, 300, 35, L"LATENCIA");
-    p = AddLabel(p, 16, 67, 284, 9, L"-- -- -- -- -- -- -- -- -- -- -- -- -- -- --");
-    p = AddGroup(p, 8, 93, 300, 31, L"DISPOSITIVOS");
-    p = AddLabel(p, 16, 106, 284, 8, L"Roteador --   PC --   TV --   PS3 --");
-    p = AddButton(p, 8, 136, 94, 24, IDC_WIFI, L"WIFI");
-    p = AddButton(p, 111, 136, 94, 24, IDC_NETWORK, L"REDE");
-    p = AddButton(p, 214, 136, 94, 24, IDC_CONTROLS, L"CONTROLES");
+    p = PutBitmapItem(p, 0, 0, 316, 184);
+    p = AddLabel(p, 16, 7, 170, 10, L"TARDIS");
+    p = AddLabel(p, 174, 7, 66, 10, L"NETWORK CONTROL");
+    p = AddCentered(p, 246, 7, 58, 10, L"OFFLINE");
+    p = AddLabel(p, 18, 22, 100, 8, L"INTERNET");
+    p = AddLabel(p, 18, 31, 94, 8, L"OFFLINE");
+    p = AddLabel(p, 138, 31, 70, 8, L"PING: -- ms");
+    p = AddLabel(p, 226, 31, 78, 8, L"LOSS: -- %");
+    p = AddLabel(p, 18, 57, 100, 8, L"LATENCY");
+    p = AddCentered(p, 18, 70, 286, 9,
+                    L"-- -- -- -- -- -- -- -- -- -- -- -- -- -- --");
+    p = AddLabel(p, 18, 96, 110, 8, L"DEVICES");
+    p = AddLabel(p, 18, 108, 286, 8,
+                 L"ROUTER --   PC --   TV --   PS3 --");
+    p = AddCentered(p, 8, 143, 94, 12, L"WIFI");
+    p = AddCentered(p, 111, 143, 94, 12, L"REDE");
+    p = AddCentered(p, 214, 143, 94, 12, L"CONTROLES");
+    p = AddHit(p, 8, 136, 94, 28, IDC_WIFI);
+    p = AddHit(p, 111, 136, 94, 28, IDC_NETWORK);
+    p = AddHit(p, 214, 136, 94, 28, IDC_CONTROLS);
     return p;
 }
 
 static BYTE *BuildWifi(void)
 {
-    BYTE *p = BeginTemplate(L"WIFI");
-    p = AddLabel(p, 8, 4, 288, 8, L"< WIFI");
-    p = AddGroup(p, 8, 18, 300, 42, L"REDE");
-    p = AddLabel(p, 16, 30, 284, 8, L"SSID: --");
-    p = AddLabel(p, 16, 44, 284, 8, L"Senha: ********");
-    p = AddButton(p, 8, 68, 145, 24, IDC_SHOW_PASS, L"MOSTRAR SENHA");
-    p = AddButton(p, 163, 68, 145, 24, IDC_QR, L"QR CODE");
-    p = AddGroup(p, 8, 98, 300, 30, L"QR CODE");
-    p = AddCentered(p, 16, 110, 284, 8, L"aguardando configuracao");
-    p = AddButton(p, 8, 140, 94, 24, IDC_BACK, L"VOLTAR");
+    BYTE *p = BeginTemplate(L"WIFI", 8);
+    p = PutBitmapItem(p, 0, 0, 316, 184);
+    p = AddLabel(p, 18, 7, 270, 10, L"< WIFI");
+    p = AddLabel(p, 24, 28, 260, 10, L"SSID: --");
+    p = AddLabel(p, 24, 43, 260, 10, L"SENHA: ********");
+    p = AddCentered(p, 24, 72, 260, 10, L"QR CODE");
+    p = AddCentered(p, 24, 87, 260, 10, L"aguardando configuracao");
+    p = AddCentered(p, 8, 143, 94, 12, L"VOLTAR");
+    p = AddHit(p, 8, 136, 94, 28, IDC_BACK);
     return p;
 }
 
 static BYTE *BuildNetwork(void)
 {
-    BYTE *p = BeginTemplate(L"REDE");
-    p = AddLabel(p, 8, 4, 288, 8, L"< REDE");
-    p = AddGroup(p, 8, 18, 300, 82, L"ESTADO DA REDE");
-    p = AddLabel(p, 16, 30, 140, 8, L"Internet   --");
-    p = AddLabel(p, 164, 30, 136, 8, L"Roteador   --");
-    p = AddLabel(p, 16, 44, 140, 8, L"PC         --");
-    p = AddLabel(p, 164, 44, 136, 8, L"TV         --");
-    p = AddLabel(p, 16, 58, 140, 8, L"PS3        --");
-    p = AddLabel(p, 164, 58, 136, 8, L"Ping       -- ms");
-    p = AddLabel(p, 16, 76, 284, 8, L"Perda      -- %");
-    p = AddButton(p, 8, 110, 145, 24, IDC_REFRESH, L"ATUALIZAR");
-    p = AddButton(p, 163, 110, 145, 24, IDC_BACK, L"VOLTAR");
+    BYTE *p = BeginTemplate(L"REDE", 13);
+    p = PutBitmapItem(p, 0, 0, 316, 184);
+    p = AddLabel(p, 18, 7, 270, 10, L"< REDE");
+    p = AddLabel(p, 22, 27, 140, 8, L"Internet   --");
+    p = AddLabel(p, 164, 27, 140, 8, L"Router     --");
+    p = AddLabel(p, 22, 42, 140, 8, L"PC         --");
+    p = AddLabel(p, 164, 42, 140, 8, L"TV         --");
+    p = AddLabel(p, 22, 57, 140, 8, L"PS3        --");
+    p = AddLabel(p, 164, 57, 140, 8, L"Ping       -- ms");
+    p = AddLabel(p, 22, 72, 140, 8, L"Perda      -- %");
+    p = AddCentered(p, 8, 143, 94, 12, L"ATUALIZAR");
+    p = AddCentered(p, 214, 143, 94, 12, L"VOLTAR");
+    p = AddHit(p, 8, 136, 145, 28, IDC_REFRESH);
+    p = AddHit(p, 163, 136, 145, 28, IDC_BACK);
     return p;
 }
 
 static BYTE *BuildControls(void)
 {
-    BYTE *p = BeginTemplate(L"CONTROLES");
-    p = AddLabel(p, 8, 4, 288, 8, L"< CONTROLES");
-    p = AddGroup(p, 8, 18, 300, 112, L"ACOES");
-    p = AddButton(p, 16, 31, 284, 18, IDC_POWER_PC, L"LIGAR PC");
-    p = AddButton(p, 16, 53, 284, 18, IDC_REFRESH_NET, L"ATUALIZAR REDE");
-    p = AddButton(p, 16, 75, 284, 18, IDC_RESTART, L"REINICIAR TARDIS");
-    p = AddButton(p, 16, 97, 284, 18, IDC_SHUTDOWN, L"DESLIGAR TARDIS");
-    p = AddButton(p, 8, 140, 94, 24, IDC_BACK, L"VOLTAR");
-    p = AddButton(p, 214, 140, 94, 24, IDC_EXIT, L"SAIR");
+    BYTE *p = BeginTemplate(L"CONTROLES", 12);
+    p = PutBitmapItem(p, 0, 0, 316, 184);
+    p = AddLabel(p, 18, 7, 270, 10, L"< CONTROLES");
+    p = AddCentered(p, 24, 29, 268, 10, L"LIGAR PC");
+    p = AddCentered(p, 24, 52, 268, 10, L"ATUALIZAR REDE");
+    p = AddCentered(p, 24, 75, 268, 10, L"REINICIAR TARDIS");
+    p = AddCentered(p, 24, 98, 268, 10, L"DESLIGAR TARDIS");
+    p = AddCentered(p, 8, 143, 94, 12, L"VOLTAR");
+    p = AddHit(p, 8, 24, 300, 18, IDC_POWER_PC);
+    p = AddHit(p, 8, 47, 300, 18, IDC_REFRESH_NET);
+    p = AddHit(p, 8, 70, 300, 18, IDC_RESTART);
+    p = AddHit(p, 8, 93, 300, 18, IDC_SHUTDOWN);
+    p = AddHit(p, 8, 136, 94, 28, IDC_BACK);
     return p;
 }
 
 static BYTE *BuildDialogTemplate(void)
 {
-    if (g_page == PAGE_WIFI) {
-        return BuildWifi();
-    }
-    if (g_page == PAGE_NETWORK) {
-        return BuildNetwork();
-    }
-    if (g_page == PAGE_CONTROLS) {
-        return BuildControls();
-    }
+    if (g_page == PAGE_WIFI) return BuildWifi();
+    if (g_page == PAGE_NETWORK) return BuildNetwork();
+    if (g_page == PAGE_CONTROLS) return BuildControls();
     return BuildDashboard();
 }
 
@@ -238,32 +245,21 @@ static BOOL CALLBACK TardisDialogProc(HWND dialog, UINT message,
     (void)dialog;
     (void)lParam;
     if (message == WM_INITDIALOG) {
-        g_dark_brush = CreateSolidBrush(RGB(18, 28, 40));
-        g_button_brush = CreateSolidBrush(RGB(30, 57, 76));
+        g_dark_brush = CreateSolidBrush(RGB(10, 20, 34));
         return TRUE;
     }
     if (message == WM_CTLCOLORDLG || message == WM_CTLCOLORSTATIC) {
         SetTextColor((HDC)wParam, RGB(225, 242, 255));
         return (INT_PTR)g_dark_brush;
     }
-    if (message == WM_CTLCOLORBTN) {
-        SetTextColor((HDC)wParam, RGB(225, 242, 255));
-        return (INT_PTR)g_button_brush;
-    }
     if (message == WM_DESTROY) {
         if (g_dark_brush != NULL) {
             DeleteObject(g_dark_brush);
             g_dark_brush = NULL;
         }
-        if (g_button_brush != NULL) {
-            DeleteObject(g_button_brush);
-            g_button_brush = NULL;
-        }
         return TRUE;
     }
-    if (message != WM_COMMAND) {
-        return FALSE;
-    }
+    if (message != WM_COMMAND) return FALSE;
     id = LOWORD(wParam);
     if (id == IDC_EXIT) {
         g_quit = TRUE;
@@ -307,7 +303,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous,
     (void)command_line;
     (void)show;
     g_status.latency_count = 0;
-
     while (!g_quit) {
         BuildDialogTemplate();
         result = DialogBoxIndirectParamW(instance,
