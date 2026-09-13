@@ -69,3 +69,6 @@ for exe in "$OUT/hello_tardis.exe" "$OUT/Tardis.exe"; do
     "$OBJDUMP" -f "$exe" | tee "$LOG/$base.objdump-f.txt"
     "$OBJDUMP" -p "$exe" | tee "$LOG/$base.objdump-p.txt"
 done
+
+chmod +x "$ROOT/scripts/validate_resource.sh"
+"$ROOT/scripts/validate_resource.sh" "$OUT/Tardis.exe" "$OBJDUMP" | tee "$LOG/resource-validation.txt"
