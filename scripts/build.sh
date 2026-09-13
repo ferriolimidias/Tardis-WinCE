@@ -35,6 +35,9 @@ else
 fi
 printf '%s\n' "${ARCH_FLAGS[*]}" | tee "$LOG/selected-arch-flags.txt"
 
+chmod +x "$ROOT/scripts/validate_bmp.sh"
+"$ROOT/scripts/validate_bmp.sh" "$ROOT/res/skin.bmp" | tee "$LOG/skin-bmp-validation.txt"
+
 # O alvo arm-mingw32ce fornece o startup/definições CE. Não distribuímos DLLs.
 "$CC" "${COMMON_FLAGS[@]}" "${ARCH_FLAGS[@]}" \
     "$SRC/hello.c" -o "$OUT/hello_tardis.exe" \
