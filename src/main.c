@@ -44,6 +44,8 @@ static BYTE g_dialog_template[4096];
 static int g_page = PAGE_DASHBOARD;
 static BOOL g_quit = FALSE;
 static TARDIS_STATUS g_status = {0};
+static HBRUSH g_dark_brush = NULL;
+static HBRUSH g_button_brush = NULL;
 
 static BYTE *PutWord(BYTE *p, WORD value)
 {
@@ -235,8 +237,32 @@ static BOOL CALLBACK TardisDialogProc(HWND dialog, UINT message,
     WORD id;
     (void)dialog;
     (void)lParam;
+    if (message == WM_INITDIALOG) {
+        g_dark_brush = CreateSolidBrush(RGB(18, 28, 40));
+        g_button_brush = CreateSolidBrush(RGB(30, 57, 76));
+        return TRUE;
+    }
+    if (message == WM_CTLCOLORDLG || message == WM_CTLCOLORSTATIC) {
+        SetTextColor((HDC)wParam, RGB(225, 242, 255));
+        return (INT_PTR)g_dark_brush;
+    }
+    if (message == WM_CTLCOLORBTN) {
+        SetTextColor((HDC)wParam, RGB(225, 242, 255));
+        return (INT_PTR)g_button_brush;
+    }
+    if (message == WM_DESTROY) {
+        if (g_dark_brush != NULL) {
+            DeleteObject(g_dark_brush);
+            g_dark_brush = NULL;
+        }
+        if (g_button_brush != NULL) {
+            DeleteObject(g_button_brush);
+            g_button_brush = NULL;
+        }
+        return TRUE;
+    }
     if (message != WM_COMMAND) {
-        return message == WM_INITDIALOG ? TRUE : FALSE;
+        return FALSE;
     }
     id = LOWORD(wParam);
     if (id == IDC_EXIT) {
