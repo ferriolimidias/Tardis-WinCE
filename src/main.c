@@ -152,7 +152,7 @@ static BYTE *BuildDashboard(void)
     p = AddLabel(p, 8, 65, 288, 8, L"Roteador --   PC --   TV --   PS3 --");
     p = AddButton(p, 8, 82, 90, 16, IDC_WIFI, L"WIFI");
     p = AddButton(p, 107, 82, 90, 16, IDC_NETWORK, L"REDE");
-    p = AddButton(p, 206, 82, 90, 16, IDC_CONTROLES, L"CONTROLES");
+    p = AddButton(p, 206, 82, 90, 16, IDC_CONTROLS, L"CONTROLES");
     return p;
 }
 
