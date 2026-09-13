@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'scripts/**'
+      - 'res/**'
       - '.github/workflows/build-wince.yml'
 
 jobs:
