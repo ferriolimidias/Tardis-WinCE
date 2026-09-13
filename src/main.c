@@ -98,8 +98,9 @@ static BYTE *BeginTemplate(LPCWSTR caption)
     p = PutWord(p, 8);
     p = PutWord(p, 0);
     p = PutWord(p, 0);
-    p = PutWord(p, 304);
-    p = PutWord(p, 112);
+    /* 316x184 DLU ocupa a área útil aproximada de 480x272 neste firmware. */
+    p = PutWord(p, 316);
+    p = PutWord(p, 184);
     p = PutWord(p, 0);
     p = PutWord(p, 0);
     p = PutString(p, caption);
@@ -138,21 +139,28 @@ static BYTE *AddButton(BYTE *p, short x, short y, short cx, short cy,
     return PutItem(p, ButtonStyle(), x, y, cx, cy, id, 0x0080, text);
 }
 
+static BYTE *AddGroup(BYTE *p, short x, short y, short cx, short cy,
+                      LPCWSTR text)
+{
+    return PutItem(p, ChildStyle() | BS_GROUPBOX, x, y, cx, cy, 0,
+                   0x0080, text);
+}
+
 static BYTE *BuildDashboard(void)
 {
     BYTE *p = BeginTemplate(L"TARDIS");
     (void)g_status;
-    p = AddLabel(p, 8, 4, 220, 8, L"TARDIS");
-    p = AddCentered(p, 238, 4, 58, 8, L"[ OFFLINE ]");
-    p = AddLabel(p, 8, 16, 288, 7, L"INTERNET");
-    p = AddLabel(p, 8, 24, 288, 7, L"[ OFFLINE ]     Ping: -- ms     Perda: -- %");
-    p = AddLabel(p, 8, 36, 288, 7, L"LATENCIA");
-    p = AddLabel(p, 8, 44, 288, 8, L"-- -- -- -- -- -- -- -- -- -- -- -- -- -- --");
-    p = AddLabel(p, 8, 57, 288, 7, L"DISPOSITIVOS");
-    p = AddLabel(p, 8, 65, 288, 8, L"Roteador --   PC --   TV --   PS3 --");
-    p = AddButton(p, 8, 82, 90, 16, IDC_WIFI, L"WIFI");
-    p = AddButton(p, 107, 82, 90, 16, IDC_NETWORK, L"REDE");
-    p = AddButton(p, 206, 82, 90, 16, IDC_CONTROLS, L"CONTROLES");
+    p = AddLabel(p, 10, 5, 220, 10, L"TARDIS  |  PAINEL DE REDE");
+    p = AddCentered(p, 244, 5, 62, 10, L"[ OFFLINE ]");
+    p = AddGroup(p, 8, 18, 300, 32, L"INTERNET");
+    p = AddLabel(p, 16, 29, 284, 8, L"OFFLINE       Ping: -- ms       Perda: -- %");
+    p = AddGroup(p, 8, 54, 300, 35, L"LATENCIA");
+    p = AddLabel(p, 16, 67, 284, 9, L"-- -- -- -- -- -- -- -- -- -- -- -- -- -- --");
+    p = AddGroup(p, 8, 93, 300, 31, L"DISPOSITIVOS");
+    p = AddLabel(p, 16, 106, 284, 8, L"Roteador --   PC --   TV --   PS3 --");
+    p = AddButton(p, 8, 136, 94, 24, IDC_WIFI, L"WIFI");
+    p = AddButton(p, 111, 136, 94, 24, IDC_NETWORK, L"REDE");
+    p = AddButton(p, 214, 136, 94, 24, IDC_CONTROLS, L"CONTROLES");
     return p;
 }
 
@@ -160,14 +168,14 @@ static BYTE *BuildWifi(void)
 {
     BYTE *p = BeginTemplate(L"WIFI");
     p = AddLabel(p, 8, 4, 288, 8, L"< WIFI");
-    p = AddLabel(p, 8, 19, 288, 7, L"REDE");
-    p = AddLabel(p, 8, 28, 288, 8, L"SSID: --");
-    p = AddLabel(p, 8, 42, 288, 7, L"SENHA");
-    p = AddLabel(p, 8, 51, 288, 8, L"********");
-    p = AddButton(p, 8, 65, 137, 16, IDC_SHOW_PASS, L"MOSTRAR SENHA");
-    p = AddButton(p, 153, 65, 143, 16, IDC_QR, L"QR CODE");
-    p = AddLabel(p, 8, 85, 288, 8, L"QR CODE: aguardando configuracao");
-    p = AddButton(p, 8, 98, 90, 10, IDC_BACK, L"VOLTAR");
+    p = AddGroup(p, 8, 18, 300, 42, L"REDE");
+    p = AddLabel(p, 16, 30, 284, 8, L"SSID: --");
+    p = AddLabel(p, 16, 44, 284, 8, L"Senha: ********");
+    p = AddButton(p, 8, 68, 145, 24, IDC_SHOW_PASS, L"MOSTRAR SENHA");
+    p = AddButton(p, 163, 68, 145, 24, IDC_QR, L"QR CODE");
+    p = AddGroup(p, 8, 98, 300, 30, L"QR CODE");
+    p = AddCentered(p, 16, 110, 284, 8, L"aguardando configuracao");
+    p = AddButton(p, 8, 140, 94, 24, IDC_BACK, L"VOLTAR");
     return p;
 }
 
@@ -175,15 +183,16 @@ static BYTE *BuildNetwork(void)
 {
     BYTE *p = BeginTemplate(L"REDE");
     p = AddLabel(p, 8, 4, 288, 8, L"< REDE");
-    p = AddLabel(p, 8, 18, 288, 7, L"Internet        --");
-    p = AddLabel(p, 8, 27, 288, 7, L"Roteador        --");
-    p = AddLabel(p, 8, 36, 288, 7, L"PC              --");
-    p = AddLabel(p, 8, 45, 288, 7, L"TV              --");
-    p = AddLabel(p, 8, 54, 288, 7, L"PS3             --");
-    p = AddLabel(p, 8, 68, 288, 7, L"Ping            -- ms");
-    p = AddLabel(p, 8, 77, 288, 7, L"Perda           -- %");
-    p = AddButton(p, 8, 91, 137, 16, IDC_REFRESH, L"ATUALIZAR");
-    p = AddButton(p, 153, 91, 143, 16, IDC_BACK, L"VOLTAR");
+    p = AddGroup(p, 8, 18, 300, 82, L"ESTADO DA REDE");
+    p = AddLabel(p, 16, 30, 140, 8, L"Internet   --");
+    p = AddLabel(p, 164, 30, 136, 8, L"Roteador   --");
+    p = AddLabel(p, 16, 44, 140, 8, L"PC         --");
+    p = AddLabel(p, 164, 44, 136, 8, L"TV         --");
+    p = AddLabel(p, 16, 58, 140, 8, L"PS3        --");
+    p = AddLabel(p, 164, 58, 136, 8, L"Ping       -- ms");
+    p = AddLabel(p, 16, 76, 284, 8, L"Perda      -- %");
+    p = AddButton(p, 8, 110, 145, 24, IDC_REFRESH, L"ATUALIZAR");
+    p = AddButton(p, 163, 110, 145, 24, IDC_BACK, L"VOLTAR");
     return p;
 }
 
@@ -191,12 +200,13 @@ static BYTE *BuildControls(void)
 {
     BYTE *p = BeginTemplate(L"CONTROLES");
     p = AddLabel(p, 8, 4, 288, 8, L"< CONTROLES");
-    p = AddButton(p, 8, 18, 288, 16, IDC_POWER_PC, L"LIGAR PC");
-    p = AddButton(p, 8, 38, 288, 16, IDC_REFRESH_NET, L"ATUALIZAR REDE");
-    p = AddButton(p, 8, 58, 288, 16, IDC_RESTART, L"REINICIAR TARDIS");
-    p = AddButton(p, 8, 78, 288, 16, IDC_SHUTDOWN, L"DESLIGAR TARDIS");
-    p = AddButton(p, 8, 98, 90, 10, IDC_BACK, L"VOLTAR");
-    p = AddButton(p, 206, 98, 90, 10, IDC_EXIT, L"SAIR");
+    p = AddGroup(p, 8, 18, 300, 112, L"ACOES");
+    p = AddButton(p, 16, 31, 284, 18, IDC_POWER_PC, L"LIGAR PC");
+    p = AddButton(p, 16, 53, 284, 18, IDC_REFRESH_NET, L"ATUALIZAR REDE");
+    p = AddButton(p, 16, 75, 284, 18, IDC_RESTART, L"REINICIAR TARDIS");
+    p = AddButton(p, 16, 97, 284, 18, IDC_SHUTDOWN, L"DESLIGAR TARDIS");
+    p = AddButton(p, 8, 140, 94, 24, IDC_BACK, L"VOLTAR");
+    p = AddButton(p, 214, 140, 94, 24, IDC_EXIT, L"SAIR");
     return p;
 }
 
