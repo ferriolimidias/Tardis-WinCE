@@ -9,6 +9,11 @@
 
 #pragma comment(lib, "coredll.lib")
 
+/* O header CE deste container nao declara este estilo de STATIC. */
+#ifndef SS_TRANSPARENT
+#define SS_TRANSPARENT 0x0001L
+#endif
+
 #define IDB_SKIN         200
 #define PAGE_DASHBOARD   0
 #define PAGE_WIFI        1
